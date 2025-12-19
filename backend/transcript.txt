@@ -1,0 +1,2 @@
+Summary: Call ended before any conversation occurred.
+Interest Percentage: 0%

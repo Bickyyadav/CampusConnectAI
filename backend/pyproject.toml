@@ -1,0 +1,19 @@
+[project]
+name = "twilio-chatbot-dial-out"
+version = "0.1.0"
+description = "Twilio dial-out example for Pipecat"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "cloudinary>=1.44.1",
+  "pipecat-ai[cartesia,deepgram,google,openrouter,runner,silero,websocket]>=0.0.91",
+  "pipecatcloud>=0.2.7",
+  "twilio",
+  "pandas",
+  "openpyxl",
+  "python-multipart",
+  "loguru",
+  "dotenv>=0.9.9",
+  "beanie>=2.0.1",
+  "motor>=3.7.1",
+]
