@@ -1,5 +1,3 @@
-
-
 import os
 
 import uvicorn
@@ -33,12 +31,15 @@ app.add_middleware(
 
 
 from core.database import init_db
+from models.user import User, CallStatus
 from routers.user import router as user_router
 from routers.health import health_router
+
 
 @app.on_event("startup")
 async def startup():
     await init_db()
+
 
 app.include_router(health_router)
 app.include_router(user_router)
@@ -69,6 +70,49 @@ async def handle_dialout_request(request: Request) -> DialoutResponse:
         to_number=call_result.to_number,
     )
 
+
+@app.post("/twilio-call-status")
+async def twilio_call_status(request: Request):
+    """
+    Handle Twilio call status updates.
+    """
+    print("💦💦💦💦💦💦")
+    form_data = await request.form()
+    logger.info(f"Twilio Status Body: {dict(form_data)}")
+
+    call_status = form_data.get("CallStatus")
+    call_duration = form_data.get("CallDuration")
+    timestamp = form_data.get("Timestamp")
+
+    logger.info(
+        f"Extracted -> Status: {call_status}, Duration: {call_duration}, Time: {timestamp}"
+    )
+
+    call_sid = form_data.get("CallSid")
+    if call_sid:
+        user = await User.find_one(User.call_sid == call_sid)
+        if user:
+            user.status = call_status
+            try:
+                user.Duration = int(call_duration) if call_duration else 0
+            except ValueError:
+                user.Duration = 0
+
+            # Mapping based on request: CallerCountry mapped to CallerCountry (assuming typo in request asking for CallerCity)
+            user.CallerCountry = form_data.get("CallerCountry")
+            user.CallerZip = form_data.get("CallerZip")
+            user.FromCountry = form_data.get("FromCountry")
+
+            await user.save()
+            logger.info(f"Updated user {user.id} call status to {call_status}")
+        else:
+            logger.warning(f"No user found for CallSid {call_sid}")
+
+    # call_status = await parse_twilio_call_status(request)
+
+    return JSONResponse(content={"status": "success"})
+
+
 @app.post("/upload")
 async def upload_excel(file: UploadFile = File(...)):
     """
@@ -76,66 +120,91 @@ async def upload_excel(file: UploadFile = File(...)):
     Expects columns: name, phoneno, email
     """
     logger.info(f"Received file upload: {file.filename}")
-    
+
     # Read the file content
     content = await file.read()
-    
+
     # Parse the excel file
     data = parse_excel_file(content)
     print("😉😉😉😉")
-    print(f"Data: {data}")
-    
+
     # Get from_number from env
     from_number = os.getenv("TWILIO_FROM_NUMBER")
     if not from_number:
         logger.error("TWILIO_FROM_NUMBER not set in environment")
         return JSONResponse(
-            status_code=500, 
-            content={"message": "Server misconfiguration: TWILIO_FROM_NUMBER not set", "data": data}
+            status_code=500,
+            content={
+                "message": "Server misconfiguration: TWILIO_FROM_NUMBER not set",
+                "data": data,
+            },
         )
-        
     results = []
-    
+
     for row in data:
         to_number = row.get("phoneno")
         # Ensure number passes basic validity check (e.g. not None)
         # Detailed validation handled by Twilio or make_twilio_call logic
-        
+
         if to_number:
             try:
                 # Need to cast to string just in case pandas inferred int
                 to_number = str(to_number).strip()
-                
+
                 if not to_number.startswith("+"):
                     to_number = f"+91{to_number}"
-                
-                dialout_req = DialoutRequest(to_number=to_number, from_number=from_number)
+
+                dialout_req = DialoutRequest(
+                    to_number=to_number, from_number=from_number
+                )
                 call_result = await make_twilio_call(dialout_req)
-                
-                results.append({
-                    "name": row.get("name"),
-                    "phoneno": to_number,
-                    "status": "initiated",
-                    "call_sid": call_result.call_sid
-                })
+
+                # Save to MongoDB
+                try:
+                    user_record = User(
+                        name=row.get("name", "Unknown"),
+                        email=row.get("email", ""),
+                        phonenumber=to_number,
+                        call_sid=call_result.call_sid,
+                        status=CallStatus.RINGING,
+                    )
+                    await user_record.insert()
+                    logger.info(
+                        f"Saved user {row.get('name')} to DB with SID {call_result.call_sid}"
+                    )
+                except Exception as db_e:
+                    logger.error(f"Failed to save user to DB: {db_e}")
+
+                results.append(
+                    {
+                        "name": row.get("name"),
+                        "phoneno": to_number,
+                        "status": "initiated",
+                        "call_sid": call_result.call_sid,
+                    }
+                )
+
             except Exception as e:
                 logger.error(f"Failed to initiate call to {to_number}: {e}")
-                results.append({
-                    "name": row.get("name"),
-                    "phoneno": to_number,
-                    "status": "failed",
-                    "error": str(e)
-                })
+                results.append(
+                    {
+                        "name": row.get("name"),
+                        "phoneno": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
         else:
-             results.append({
+            results.append(
+                {
                     "name": row.get("name"),
                     "phoneno": None,
                     "status": "skipped",
-                    "error": "No phone number"
-                })
+                    "error": "No phone number",
+                }
+            )
 
     return JSONResponse(content={"results": results, "data": data})
-
 
 
 @app.post("/twiml")
@@ -157,7 +226,6 @@ async def get_twiml(request: Request) -> HTMLResponse:
     twiml_request = await parse_twiml_request(request)
 
     twiml_content = generate_twiml(twiml_request)
-    
 
     return HTMLResponse(content=twiml_content, media_type="application/xml")
 

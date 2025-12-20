@@ -33,8 +33,8 @@ from pipecat.runner.types import RunnerArguments
 from pipecat.runner.utils import parse_telephony_websocket
 from pipecat.serializers.twilio import TwilioFrameSerializer
 
-# from pipecat.services.deepgram.tts import DeepgramTTSService
-from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.deepgram.tts import DeepgramTTSService
+# from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 
 # from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
@@ -51,6 +51,7 @@ from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from service.bot import save_recording
 from service.generate_context import summarize_conversation_with_llm
 from prompt_data import get_prompt
+from models.user import User
 
 load_dotenv(override=True)
 
@@ -58,6 +59,8 @@ logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
 
 async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict):
+    print("🔴🔴🔴🔴🔴🔴🔴🔴🔴👌👌👌👌💦💦")
+    print(call_data)
     llm = OpenRouterLLMService(
         api_key=os.getenv("OPEN_ROUTER_API_KEY"),
         model="meta-llama/llama-3.3-70b-instruct:free",
@@ -78,25 +81,40 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         live_options=LiveOptions(language=Language.EN),
     )
 
-    # tts = DeepgramTTSService(
-    #     api_key=deepgram_api_key,
-    #     live_options=LiveOptions(language=Language.HI),
-    #     voice_id="f91ab3e6-5071-4e15-b016-cde6f2bcd222",
-    # )
-
-    tts = ElevenLabsTTSService(
-        api_key=os.getenv("ELEVEN_LABS_API_KEY"),
-        live_options=LiveOptions(language=Language.EN),
-        voice_id="FGY2WhTYpPnrIDTdsKH5",
+    tts = DeepgramTTSService(
+        api_key=deepgram_api_key,
+        live_options=LiveOptions(language=Language.HI),
+        voice_id="f91ab3e6-5071-4e15-b016-cde6f2bcd222",
     )
+
+    # tts = ElevenLabsTTSService(
+    #     api_key=os.getenv("ELEVEN_LABS_API_KEY"),
+    #     live_options=LiveOptions(language=Language.EN),
+    #     voice_id="FGY2WhTYpPnrIDTdsKH5",
+    # )
 
     # tts = CartesiaTTSService(
     #     api_key=os.getenv("CARTESIA_API_KEY"),
     #     voice_id="71a7ad14-091c-4e8e-a314-022ece01c121",  # British Reading Lady
     # )
 
+    
+    # Fetch user name from DB
+    call_id = call_data.get("call_id")
+    user_name = "bicky" # Default name
+    if call_id:
+        try:
+            user = await User.find_one(User.call_sid == call_id)
+            if user and user.name:
+                user_name = user.name
+                logger.info(f"Found user {user_name} for call {call_id}")
+            else:
+                logger.warning(f"No user found for call {call_id}, using default")
+        except Exception as e:
+            logger.error(f"Error fetching user for call {call_id}: {e}")
+
     messages = [
-        {"role": "system", "content": get_prompt("bicky")},
+        {"role": "system", "content": get_prompt(user_name)},
     ]
 
     context = LLMContext(messages)
@@ -107,7 +125,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         buffer_size=0,
         enable_turn_audio=False,
     )
-    
+
     transcript = TranscriptProcessor()
 
     pipeline = Pipeline(

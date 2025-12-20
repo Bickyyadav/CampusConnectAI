@@ -118,7 +118,24 @@ async def make_twilio_call(dialout_request: DialoutRequest) -> TwilioCallResult:
 
     # Create Twilio client and make the call
     client = TwilioClient(account_sid, auth_token)
-    call = client.calls.create(to=to_number, from_=from_number, url=twiml_url, method="POST")
+    call = client.calls.create(
+        to=to_number,
+        status_callback=os.getenv("LOCAL_SERVER_URL") + "/twilio-call-status",
+        status_callback_method="POST",
+        status_callback_event=[
+            "completed",
+            "queued",
+            "ringing",
+            "in-progress",
+            "failed",
+            "busy",
+            "no-answer",
+            "canceled",
+        ],
+        from_=from_number,
+        url=twiml_url,
+        method="POST",
+    )
 
     return TwilioCallResult(call_sid=call.sid, to_number=to_number)
 

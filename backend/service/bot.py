@@ -9,6 +9,7 @@ from fastapi import Request, BackgroundTasks, HTTPException
 import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
+from models.user import User
 
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
@@ -17,7 +18,8 @@ cloudinary.config(
     secure=True,
 )
 
-async def upload_file_to_cloud(file_path: str):
+
+async def upload_file_to_cloud(file_path: str, call_id: str = None):
     """Upload a single audio file to Cloudinary and remove it locally."""
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Recording file not found")
@@ -33,13 +35,23 @@ async def upload_file_to_cloud(file_path: str):
         logger.info("Uploaded recording to Cloudinary: {}", secure_url)
 
         # db_entry = await _persist_recording_url(secure_url)
+        if call_id:
+            user = await User.find_one(User.call_sid == call_id)
+            if user:
+                user.Recording_URL = secure_url
+                await user.save()
+                logger.info(f"Updated recording URL for user {user.id}")
+            else:
+                logger.warning(
+                    f"No user found for call_id {call_id} to save recording URL"
+                )
+
         return {
             "msg": "Audio uploaded successfully",
             "src": secure_url,
             "recording_id": "🔴🔴🔴🔴🔴🔴🔴🔴🐈🐈🐈🐈",
-            # "recording_id": db_entry["id"],
         }
-        
+
     except Exception as exc:
         logger.exception("Failed to upload recording %s", file_path)
         raise HTTPException(
@@ -57,7 +69,7 @@ async def upload_file_to_cloud(file_path: str):
 
 async def save_recording(buffer, audio, sample_rate, num_channels, call_id: str = None):
     """Save audio locally and upload complete file to cloudinary."""
-    # Ensure recordings directory exists 
+    # Ensure recordings directory exists
     recordings_dir = "recordings"
     if not os.path.exists(recordings_dir):
         os.makedirs(recordings_dir)
@@ -74,4 +86,4 @@ async def save_recording(buffer, audio, sample_rate, num_channels, call_id: str 
         wf.setframerate(sample_rate)
         wf.writeframes(audio)
 
-    await upload_file_to_cloud(filename)
+    await upload_file_to_cloud(filename, call_id)

@@ -7,15 +7,18 @@ from core.database import client
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+
 @router.post("/", response_model=UserResponse)
 async def create_user(data: UserCreate):
     user = User(**data.dict())
     await user.insert()
     return user
 
+
 @router.get("/")
 async def get_users():
     return await User.find_all().to_list()
+
 
 @router.get("/health")
 async def health_check():
@@ -24,10 +27,11 @@ async def health_check():
         return {"status": "ok", "db": "connected"}
     except Exception:
         return {"status": "error", "db": "not connected"}
-                        
 
 
-
-
-
-
+    
+@router.get("/calls")
+async def get_all_calls():
+    print("😉😉😉😉🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️")
+    """Get all calls sorted by date (newest first)."""
+    return await User.find_all().sort("-createdAt").to_list()

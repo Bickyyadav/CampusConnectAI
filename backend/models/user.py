@@ -1,4 +1,4 @@
-#database schema  in this pdf 
+# database schema  in this pdf
 
 from beanie import Document
 from pydantic import EmailStr, Field
@@ -8,10 +8,15 @@ from datetime import datetime
 
 class CallStatus(str, Enum):
     PENDING = "PENDING"
-    RINGING = "RINGING"
-    CONNECTED = "CONNECTED"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+    RINGING = "ringing"
+    CONNECTED = "connected"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    NO_ANSWER = "no-answer"
+    BUSY = "busy"
+    CANCELED = "canceled"
+    IN_PROGRESS = "in-progress"
+    QUEUED = "queued"
 
 
 class User(Document):
@@ -19,11 +24,15 @@ class User(Document):
     email: EmailStr
     phonenumber: str
     call_sid: str
-    Transcript: str
-    Duration: int
-    Quality_Score: int
-    Analysis: str
-    Recording_URL: str
+    Transcript: str | None = None
+    Duration: int | None = None
+    Quality_Score: int | None = None
+    Analysis: str | None = None
+    Recording_URL: str | None = None
+    CallerCountry: str | None = None
+    CallerZip: str | None = None
+    ToCountry: str | None = None
+    FromCountry: str | None = None
     status: CallStatus = CallStatus.PENDING
 
     createdAt: datetime = Field(default_factory=datetime.utcnow)
