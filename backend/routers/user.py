@@ -1,6 +1,7 @@
 # API routes
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from beanie import PydanticObjectId
 from models.user import User
 from schemas.user import UserCreate, UserResponse
 from core.database import client
@@ -29,9 +30,20 @@ async def health_check():
         return {"status": "error", "db": "not connected"}
 
 
-    
 @router.get("/calls")
 async def get_all_calls():
-    print("😉😉😉😉🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️🤷‍♀️")
     """Get all calls sorted by date (newest first)."""
     return await User.find_all().sort("-createdAt").to_list()
+
+
+@router.get("/call/{id}")
+async def get_call_by_id(id: str):
+    """Get a specific call by ID."""
+    try:
+        user = await User.get(PydanticObjectId(id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Call not found")
+    return user
