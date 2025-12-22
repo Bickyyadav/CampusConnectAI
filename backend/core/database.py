@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
@@ -6,6 +7,7 @@ from models.user import User
 import os
 
 client: AsyncIOMotorClient | None = None
+
 
 async def init_db():
     global client
@@ -29,7 +31,7 @@ async def init_db():
         print(f"❌ MongoDB connection failed: {e}")
         client = None
 
+
 async def close_db():
     if client:
         client.close()
-

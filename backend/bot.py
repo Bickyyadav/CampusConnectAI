@@ -18,13 +18,14 @@ from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
 )
-from prompt_data import system_prompt
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transcriptions.language import Language
 from pipecat.frames.frames import (
     EndTaskFrame,
     LLMRunFrame,
     TTSSpeakFrame,
 )
+from pipecat.adapters.schemas.tools_schema import ToolsSchema, FunctionSchema
 from pipecat.processors.transcript_processor import TranscriptProcessor
 from deepgram import (
     LiveOptions,
@@ -34,14 +35,18 @@ from pipecat.runner.utils import parse_telephony_websocket
 from pipecat.serializers.twilio import TwilioFrameSerializer
 
 from pipecat.services.deepgram.tts import DeepgramTTSService
+
 # from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
 
-# from pipecat.services.cartesia.tts import CartesiaTTSService
+from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.transports.base_transport import BaseTransport
-from pipecat.services.openrouter.llm import OpenRouterLLMService
+
+# from pipecat.services.openrouter.llm import OpenRouterLLMService
+from pipecat.services.groq.llm import GroqLLMService
 
 # from pipecat.services.google.llm import GoogleLLMService
+
 from pipecat.transports.websocket.fastapi import (
     FastAPIWebsocketParams,
     FastAPIWebsocketTransport,
@@ -49,23 +54,41 @@ from pipecat.transports.websocket.fastapi import (
 from starlette.websockets import WebSocketDisconnect
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from service.bot import save_recording
-from service.generate_context import summarize_conversation_with_llm
+
 from prompt_data import get_prompt
-from models.user import User
+from models.user import User, CallStatus
+from datetime import datetime, timedelta
 
 load_dotenv(override=True)
 
-logger.remove(0)
+
+try:
+    logger.remove(0)
+except ValueError:
+    pass
 logger.add(sys.stderr, level="DEBUG")
 
+
+from pipecat.services.llm_service import FunctionCallParams
+
+
+async def end_call_function(params: FunctionCallParams):
+    """End the call when user requests it."""
+    await params.llm.push_frame(TTSSpeakFrame("Goodbye! Ending the call now."))
+    await params.llm.push_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
+    await params.result_callback({"status": "call_ended"})
+
+
 async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict):
-    print("🔴🔴🔴🔴🔴🔴🔴🔴🔴👌👌👌👌💦💦")
-    print(call_data)
-    llm = OpenRouterLLMService(
-        api_key=os.getenv("OPEN_ROUTER_API_KEY"),
-        model="meta-llama/llama-3.3-70b-instruct:free",
-        # model="meta-llama/llama-3.2-3b-instruct:free",
-    )
+
+    # llm = OpenRouterLLMService(
+    #     api_key=os.getenv("OPEN_ROUTER_API_KEY"),
+    #     model="meta-llama/llama-3.3-70b-instruct:free",
+    #     # model="meta-llama/llama-3.2-3b-instruct:free",
+    # )
+    llm = GroqLLMService(api_key=os.getenv("GROQ_API_KEY"))
+    llm.register_function("end_call", end_call_function)
+
     # llm = GoogleLLMService(
     #     api_key=os.getenv("GOOGLE_API_KEY"),
     # )
@@ -78,14 +101,14 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
 
     stt = DeepgramSTTService(
         api_key=deepgram_api_key,
-        live_options=LiveOptions(language=Language.EN),
+        live_options=LiveOptions(language=Language.EN_IN),
     )
 
-    tts = DeepgramTTSService(
-        api_key=deepgram_api_key,
-        live_options=LiveOptions(language=Language.HI),
-        voice_id="f91ab3e6-5071-4e15-b016-cde6f2bcd222",
-    )
+    # tts = DeepgramTTSService(
+    #     api_key=deepgram_api_key,
+    #     live_options=LiveOptions(language=Language.EN_IN),
+    #     voice_id="f91ab3e6-5071-4e15-b016-cde6f2bcd222",
+    # )
 
     # tts = ElevenLabsTTSService(
     #     api_key=os.getenv("ELEVEN_LABS_API_KEY"),
@@ -93,15 +116,78 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     #     voice_id="FGY2WhTYpPnrIDTdsKH5",
     # )
 
-    # tts = CartesiaTTSService(
-    #     api_key=os.getenv("CARTESIA_API_KEY"),
-    #     voice_id="71a7ad14-091c-4e8e-a314-022ece01c121",  # British Reading Lady
-    # )
+    tts = CartesiaTTSService(
+        api_key=os.getenv("CARTESIA_API_KEY"),
+        voice_id="95d51f79-c397-46f9-b49a-23763d3eaa2d",  # British Reading Lady
+    )
 
-    
+    async def schedule_callback_function(params: FunctionCallParams):
+        """Schedule a callback when user requests it."""
+        try:
+            delay = params.arguments.get("minutes_delay", 10)
+            if isinstance(delay, str):
+                delay = int(delay)
+
+            future_time = datetime.utcnow() + timedelta(minutes=delay)
+
+            if call_id:
+                user = await User.find_one(User.call_sid == call_id)
+                if user:
+                    user.status = CallStatus.SCHEDULED
+                    user.time_to_call = future_time
+                    await user.save()
+                    logger.info(
+                        f"Scheduled callback for {user.name} at {future_time} (delay: {delay} min)"
+                    )
+
+            # Simple heuristic for friendlier message
+            if delay >= 1440:  # 1 day
+                days = delay // 1440
+                msg = f"Okay, I have scheduled a callback in {days} day{'s' if days > 1 else ''}."
+            elif delay >= 60:
+                hours = delay // 60
+                msg = f"Okay, I have scheduled a callback in {hours} hour{'s' if hours > 1 else ''}."
+            else:
+                msg = f"Okay, I have scheduled a callback in {delay} minutes."
+
+            await params.llm.push_frame(TTSSpeakFrame(f"{msg} Goodbye!"))
+            await params.llm.push_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
+            await params.result_callback({"status": "scheduled"})
+        except Exception as e:
+            logger.error(f"Error scheduling callback: {e}")
+            await params.result_callback({"status": "error", "error": str(e)})
+
+    llm.register_function("schedule_callback", schedule_callback_function)
+
+    schedule_callback_schema = FunctionSchema(
+        name="schedule_callback",
+        description="Schedule a callback invocation. If the user provides a natural language time (e.g., 'tomorrow', 'in 2 hours'), YOU MUST calculate and pass the total duration in MINUTES as the 'minutes_delay' argument. E.g., 'tomorrow' -> 1440, '2 hours' -> 120.",
+        properties={
+            "minutes_delay": {
+                "type": "integer",
+                "description": "The delay in minutes to wait before calling back. CALCULATED BY AI from user's request.",
+            },
+        },
+        required=["minutes_delay"],
+    )
+
+    restaurant_function = FunctionSchema(
+        name="get_restaurant_recommendation",
+        description="Get a restaurant recommendation",
+        properties={
+            "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA",
+            },
+        },
+        required=["location"],
+    )
+
+    tools = ToolsSchema(standard_tools=[restaurant_function, schedule_callback_schema])
+
     # Fetch user name from DB
     call_id = call_data.get("call_id")
-    user_name = "bicky" # Default name
+    user_name = "abc"  # Default name
     if call_id:
         try:
             user = await User.find_one(User.call_sid == call_id)
@@ -117,7 +203,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         {"role": "system", "content": get_prompt(user_name)},
     ]
 
-    context = LLMContext(messages)
+    context = LLMContext(messages, tools)
     context_aggregator = LLMContextAggregatorPair(context)
     audio_buffer = AudioBufferProcessor(
         sample_rate=None,
@@ -137,8 +223,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
             llm,  # LLM
             tts,  # Text-To-Speech
             transcript.assistant(),
-            transport.output(),  # Websocket output to client
             audio_buffer,
+            transport.output(),  # Websocket output to client
             context_aggregator.assistant(),
         ]
     )
@@ -156,26 +242,21 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     call_id = call_data["call_id"]
     transcript_history: list[dict[str, str]] = []
 
-
     async def call_end_function():
         await task.cancel()
-        print("🔴🔴🔴🔴🔴🔴")
         summary = await summarize_conversation_with_llm(transcript_history)
         logger.info("Call summary: %s", summary["summary_line"])
         logger.info(
             "Interest to book specialist: %s%%",
             summary["interest_percentage"],
         )
-        print(
-            f"Call summary → {summary['summary_line']} | Interest: {summary['interest_percentage']}%"
-        )
         return summary
 
     @transcript.event_handler("on_transcript_update")
     async def on_transcript_update(processor, frame):
         for message in frame.messages:
-            transcript_history.append({"role": message.role, "content": message.content})
-   
+            transcript_history.append(f"{message.role}: {message.content}")
+
     @audio_buffer.event_handler("on_audio_data")
     async def on_audio_data(buffer, audio: bytes, sample_rate: int, num_channels: int):
         # Buffer audio data for later upload
@@ -192,19 +273,32 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     async def on_client_disconnected(transport, client):
         logger.info("Outbound call ended")
         # this is for summarizing the text what is the conversation is happening between user and bot
-        summary = await call_end_function()
+        final_transcript = " ".join(transcript_history)
+        from service.generate_context import analyze_transcript
 
-        transcript_file = os.path.join(os.getcwd(), "transcript.txt")
-        try:
-            with open(transcript_file, "w", encoding="utf-8") as fp:
-                for entry in transcript_history:
-                    fp.write(f"{entry['role']}: {entry['content']}\n")
-                fp.write(f"Summary: {summary['summary_line']}\n")
-                fp.write(f"Interest Percentage: {summary['interest_percentage']}%\n")
-            logger.info(f"Transcript saved to {transcript_file}")
-            print(f"Transcript saved to {transcript_file}")
-        except Exception as exc:
-            logger.error(f"Failed to write transcript: {exc}")
+        analyst_result = await analyze_transcript(final_transcript)
+
+        if call_id:
+            try:
+                user = await User.find_one(User.call_sid == call_id)
+                if user:
+                    user.Transcript = final_transcript
+                    user.Analysis = analyst_result.summary
+                    # Cast float score to int to match model definition
+                    user.Quality_Score = int(analyst_result.quality_score)
+                    user.Intent = analyst_result.intent
+                    user.Outcome = analyst_result.outcome
+                    await user.save()
+                    logger.info(
+                        f"Saved analysis for call {call_id}: Score {user.Quality_Score}"
+                    )
+                else:
+                    logger.warning(
+                        f"User not found for call {call_id} to save analysis"
+                    )
+            except Exception as e:
+                logger.error(f"Error saving analysis to DB: {e}")
+
         await task.cancel()
 
     runner = PipelineRunner(handle_sigint=handle_sigint)

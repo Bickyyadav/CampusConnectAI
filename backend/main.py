@@ -34,11 +34,21 @@ from core.database import init_db
 from models.user import User, CallStatus
 from routers.user import router as user_router
 from routers.health import health_router
+from routers.user import check_scheduled_calls
+from fastapi_crons import Crons
+
+loader = Crons(app)
+
+
+@loader.cron("*/1 * * * *", name="check_scheduled_calls")
+async def _register_check_scheduled_calls_job():
+    await check_scheduled_calls()
 
 
 @app.on_event("startup")
 async def startup():
     await init_db()
+    await loader.start()
 
 
 app.include_router(health_router)
@@ -76,7 +86,7 @@ async def twilio_call_status(request: Request):
     """
     Handle Twilio call status updates.
     """
-    print("💦💦💦💦💦💦")
+
     form_data = await request.form()
     logger.info(f"Twilio Status Body: {dict(form_data)}")
 
@@ -126,7 +136,6 @@ async def upload_excel(file: UploadFile = File(...)):
 
     # Parse the excel file
     data = parse_excel_file(content)
-    print("😉😉😉😉")
 
     # Get from_number from env
     from_number = os.getenv("TWILIO_FROM_NUMBER")
@@ -257,6 +266,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 if __name__ == "__main__":
     # Run the server
-    port = int(os.getenv("PORT", "7860"))
+    port = int(os.getenv("PORT", "8000"))
     logger.info(f"Starting Twilio outbound chatbot server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)

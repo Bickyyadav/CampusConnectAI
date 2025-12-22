@@ -4,6 +4,7 @@ from beanie import Document
 from pydantic import EmailStr, Field
 from enum import Enum
 from datetime import datetime
+from typing import Optional
 
 
 class CallStatus(str, Enum):
@@ -17,6 +18,7 @@ class CallStatus(str, Enum):
     CANCELED = "canceled"
     IN_PROGRESS = "in-progress"
     QUEUED = "queued"
+    SCHEDULED = "scheduled"
 
 
 class User(Document):
@@ -33,6 +35,9 @@ class User(Document):
     CallerZip: str | None = None
     ToCountry: str | None = None
     FromCountry: str | None = None
+    Intent: str | None = None
+    Outcome: str | None = None
+    time_to_call: Optional[datetime] = None
     status: CallStatus = CallStatus.PENDING
 
     createdAt: datetime = Field(default_factory=datetime.utcnow)

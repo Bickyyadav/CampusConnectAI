@@ -66,7 +66,7 @@ export default function StatsPage() {
     useEffect(() => {
         const fetchCalls = async () => {
             try {
-                const response = await fetch("http://localhost:8000/users/calls");
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/calls`);
                 if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
                 const data: CallData[] = await response.json();
                 setCalls(data);
@@ -266,7 +266,6 @@ export default function StatsPage() {
                                     <tr>
                                         <th className="px-8 py-5">Customer</th>
                                         <th className="px-6 py-5">Status</th>
-                                        <th className="px-6 py-5">Recording</th>
                                         <th className="px-6 py-5">Created At</th>
                                         <th className="px-6 py-5">Duration</th>
                                         <th className="px-6 py-5 text-right">Time</th>
@@ -301,24 +300,6 @@ export default function StatsPage() {
                                                         } animate-pulse`}></span>
                                                     {call.status || 'Unknown'}
                                                 </span>
-                                            </td>
-                                            <td className="px-6 py-5">
-                                                {call.Recording_Url ? (
-                                                    <a
-                                                        href={call.Recording_Url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-white/5 hover:bg-indigo-500 hover:text-white text-indigo-400 transition-colors border border-white/10"
-                                                        title="Play Recording"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                                                            <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </a>
-                                                ) : (
-                                                    <span className="text-slate-600 text-xs">—</span>
-                                                )}
                                             </td>
                                             <td className="px-6 py-5 text-slate-400">
                                                 {new Date(call.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

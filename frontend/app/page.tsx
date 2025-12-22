@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ToastContainer } from 'react-toastify';
 
 export default function Home() {
   const router = useRouter();
@@ -9,6 +10,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   // Mouse tracking for 3D tilt and spotlight effect
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -54,7 +56,10 @@ export default function Home() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const response = await fetch("http://localhost:8000/upload", { method: "POST", body: formData });
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
       if (response.ok) {
         clearFile();
         router.push("/stats");
@@ -262,6 +267,7 @@ export default function Home() {
         <div className="h-6 w-20 bg-white rounded-md"></div>
       </div>
 
+      <ToastContainer />
     </div>
   );
 }

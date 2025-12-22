@@ -26,6 +26,15 @@ const Sidebar = () => {
                 </svg>
             ),
         },
+        {
+            name: "History",
+            href: "/history",
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+            ),
+        },
     ];
 
     return (
@@ -49,8 +58,8 @@ const Sidebar = () => {
                                 <Link
                                     href={item.href}
                                     className={`group flex items-center rounded-xl p-3 transition-all duration-200 ${isActive
-                                            ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25"
-                                            : "text-slate-100 hover:bg-white/10 hover:text-white"
+                                        ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/25"
+                                        : "text-slate-100 hover:bg-white/10 hover:text-white"
                                         }`}
                                 >
                                     <div className={`transition-transform duration-200 ${isActive ? "" : "group-hover:scale-110"}`}>

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "cloudinary>=1.44.1",
-  "pipecat-ai[cartesia,deepgram,google,openrouter,runner,silero,websocket]>=0.0.91",
+  "pipecat-ai[cartesia,deepgram,google,groq,openrouter,runner,silero,websocket]>=0.0.91",
   "pipecatcloud>=0.2.7",
   "twilio",
   "pandas",
@@ -16,4 +16,7 @@ dependencies = [
   "dotenv>=0.9.9",
   "beanie>=2.0.1",
   "motor>=3.7.1",
+  "litellm>=1.80.10",
+  "fastapi-utilities>=0.3.1",
+  "fastapi-crons>=2.0.1",
 ]
