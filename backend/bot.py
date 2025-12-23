@@ -66,7 +66,7 @@ try:
     logger.remove(0)
 except ValueError:
     pass
-logger.add(sys.stderr, level="DEBUG")
+logger.add(sys.stdout, level="DEBUG")
 
 
 from pipecat.services.llm_service import FunctionCallParams
