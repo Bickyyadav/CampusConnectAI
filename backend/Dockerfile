@@ -17,7 +17,7 @@ WORKDIR /app
 # Copy dependency definition files first.
 # This leverages Docker's layer caching: if these files don't change,
 # Docker skips the installation step, speeding up builds.
-# COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies into a virtual environment.
 # --frozen: Ensures we install exactly what's in uv.lock
