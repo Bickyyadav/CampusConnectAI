@@ -36,9 +36,7 @@ from routers.user import router as user_router
 from routers.health import health_router
 # from routers.user import check_scheduled_calls
 from fastapi_crons import Crons
-print("TWILIO_ACCOUNT_SID:", os.getenv("TWILIO_ACCOUNT_SID"))
-print("TWILIO_AUTH_TOKEN:", "SET" if os.getenv("TWILIO_AUTH_TOKEN") else "MISSING")
-print("TWILIO_PHONE_NUMBER:", os.getenv("TWILIO_PHONE_NUMBER"))
+
 
 loader = Crons(app)
 
@@ -48,10 +46,10 @@ loader = Crons(app)
 #     await check_scheduled_calls()
 
 
-@app.on_event("startup")
-async def startup():
-    await init_db()
-    await loader.start()
+# @app.on_event("startup")
+# async def startup():
+#     await init_db()
+#     await loader.start()
 
 
 app.include_router(health_router)
