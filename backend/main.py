@@ -47,10 +47,10 @@ from routers.health import health_router
 #     await check_scheduled_calls()
 
 
-# @app.on_event("startup")
-# async def startup():
-#     await init_db()
-#     await loader.start()
+@app.on_event("startup")
+async def startup():
+    await init_db()
+    # await loader.start()
 
 
 app.include_router(health_router)
