@@ -98,6 +98,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         raise RuntimeError(
             "Missing DEEPGRAM_API_KEY environment variable for Deepgram STT"
         )
+    call_id = call_data["call_id"]
+    transcript_history: list[dict[str, str]] = []
 
     stt = DeepgramSTTService(
         api_key=deepgram_api_key,
@@ -121,6 +123,8 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         voice_id="95d51f79-c397-46f9-b49a-23763d3eaa2d",  # British Reading Lady
     )
 
+    from service.generate_context import analyze_transcript
+
     async def schedule_callback_function(params: FunctionCallParams):
         """Schedule a callback when user requests it."""
         try:
@@ -136,6 +140,28 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
                     user.status = CallStatus.SCHEDULED
                     user.time_to_call = future_time
                     await user.save()
+                    final_transcript = " ".join(transcript_history)
+                    analyst_result = await analyze_transcript(final_transcript)
+            if call_id:
+                try:
+                    user = await User.find_one(User.call_sid == call_id)
+                    if user:
+                        user.Transcript = final_transcript
+                        user.Analysis = analyst_result.summary
+                        # Cast float score to int to match model definition
+                        user.Quality_Score = int(analyst_result.quality_score)
+                        user.Intent = analyst_result.intent
+                        user.Outcome = analyst_result.outcome
+                        await user.save()
+                        logger.info(
+                            f"Saved analysis for call {call_id}: Score {user.Quality_Score}"
+                        )
+                    else:
+                        logger.warning(
+                            f"User not found for call {call_id} to save analysis"
+                        )
+                except Exception as e:
+                    logger.error(f"Error saving analysis to DB: {e}")
                     logger.info(
                         f"Scheduled callback for {user.name} at {future_time} (delay: {delay} min)"
                     )
@@ -240,7 +266,6 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     )
 
     call_id = call_data["call_id"]
-    transcript_history: list[dict[str, str]] = []
 
     async def call_end_function():
         await task.cancel()

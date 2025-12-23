@@ -11,7 +11,7 @@ try:
     print(f"Health Status: {health.status_code}")
     print(f"Health Body: {health.text}")
 except Exception as e:
-    print(f"❌ Could not reach health endpoint: {e}")
+    print(f" Could not reach health endpoint: {e}")
     exit(1)
 
 # 2. Try Create User
@@ -30,8 +30,8 @@ try:
     print(f"Response Body: {response.text}")
     
     if response.status_code == 200:
-        print("✅ Success! User created.")
+        print(" Success! User created.")
     else:
-        print("❌ Failed.")
+        print(" Failed.")
 except Exception as e:
-    print(f"❌ Error during request: {e}")
+    print(f" Error during request: {e}")

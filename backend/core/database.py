@@ -26,9 +26,9 @@ async def init_db():
 
         await init_beanie(database=database, document_models=[User])
 
-        print("✅ MongoDB connected successfully")
+        print(" MongoDB connected successfully")
     except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
+        print(f" MongoDB connection failed: {e}")
         client = None
 
 
