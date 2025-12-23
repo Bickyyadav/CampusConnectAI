@@ -34,11 +34,12 @@ from core.database import init_db
 from models.user import User, CallStatus
 from routers.user import router as user_router
 from routers.health import health_router
+
 # from routers.user import check_scheduled_calls
-from fastapi_crons import Crons
+# from fastapi_crons import Crons
 
 
-loader = Crons(app)
+# loader = Crons(app)
 
 
 # @loader.cron("*/1 * * * *", name="check_scheduled_calls")
@@ -46,10 +47,10 @@ loader = Crons(app)
 #     await check_scheduled_calls()
 
 
-# @app.on_event("startup")
-# async def startup():
-#     await init_db()
-#     await loader.start()
+@app.on_event("startup")
+async def startup():
+    await init_db()
+    await loader.start()
 
 
 app.include_router(health_router)

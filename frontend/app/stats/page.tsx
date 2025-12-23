@@ -68,6 +68,10 @@ export default function StatsPage() {
             try {
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/calls`);
                 if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
+                console.log("😉😉😉😉😉");
+                
+                console.log("response");
+
                 const data: CallData[] = await response.json();
                 setCalls(data);
 
