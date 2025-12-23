@@ -1,0 +1,19 @@
+
+# Git
+.git
+.gitignore
+
+# Python/Environment
+.env
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+uv.lock
+
+# Project specific
+recordings
+cron_state.db

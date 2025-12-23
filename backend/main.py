@@ -16,7 +16,7 @@ from server_utils import (
 )
 from excel_utils import parse_excel_file
 
-load_dotenv(override=True)
+load_dotenv()
 
 
 app = FastAPI()
