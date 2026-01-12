@@ -9,6 +9,7 @@ import sys
 
 from dotenv import load_dotenv
 from loguru import logger
+import asyncio
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
 from pipecat.pipeline.pipeline import Pipeline
@@ -72,13 +73,6 @@ logger.add(sys.stdout, level="DEBUG")
 from pipecat.services.llm_service import FunctionCallParams
 
 
-async def end_call_function(params: FunctionCallParams):
-    """End the call when user requests it."""
-    await params.llm.push_frame(TTSSpeakFrame("Goodbye! Ending the call now."))
-    await params.llm.push_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
-    await params.result_callback({"status": "call_ended"})
-
-
 async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict):
 
     # llm = OpenRouterLLMService(
@@ -86,8 +80,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     #     model="meta-llama/llama-3.3-70b-instruct:free",
     #     # model="meta-llama/llama-3.2-3b-instruct:free",
     # )
-    llm = GroqLLMService(api_key=os.getenv("GROQ_API_KEY"))
-    llm.register_function("end_call", end_call_function)
+    llm = GroqLLMService(api_key=os.getenv("GROQ_API_KEY"), model="openai/gpt-oss-120b")
 
     # llm = GoogleLLMService(
     #     api_key=os.getenv("GOOGLE_API_KEY"),
@@ -209,7 +202,16 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         required=["location"],
     )
 
-    tools = ToolsSchema(standard_tools=[restaurant_function, schedule_callback_schema])
+    end_call_schema = FunctionSchema(
+        name="end_call",
+        description="End the conversation and hang up the call when the user requests to end it",
+        properties={},
+        required=[],
+    )
+
+    tools = ToolsSchema(
+        standard_tools=[restaurant_function, schedule_callback_schema, end_call_schema]
+    )
 
     # Fetch user name from DB
     call_id = call_data.get("call_id")
@@ -277,6 +279,13 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
         )
         return summary
 
+    async def end_call_function(params: FunctionCallParams):
+        await params.llm.push_frame(TTSSpeakFrame("Goodbye! Ending the call now."))
+        await call_end_function()
+        await params.result_callback({"status": "call_ended"})
+
+    llm.register_function("end_call", end_call_function)
+
     @transcript.event_handler("on_transcript_update")
     async def on_transcript_update(processor, frame):
         for message in frame.messages:
@@ -291,6 +300,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool, call_data: dict
     async def on_client_connected(transport, client):
         # Kick off the outbound conversation, waiting for the user to speak first
         await audio_buffer.start_recording()
+        await asyncio.sleep(1.0)
         await task.queue_frames([LLMRunFrame()])
         logger.info("Starting outbound call conversation")
 
@@ -339,9 +349,6 @@ async def bot(runner_args: RunnerArguments):
     transport_type, call_data = await parse_telephony_websocket(runner_args.websocket)
     logger.info(f"Auto-detected transport: {transport_type}")
 
-    # Access custom stream parameters passed from TwiML
-    # Use the body data to personalize the conversation
-    # by loading customer data based on the to_number or from_number
     body_data = call_data.get("body", {})
     to_number = body_data.get("to_number")
     from_number = body_data.get("from_number")
